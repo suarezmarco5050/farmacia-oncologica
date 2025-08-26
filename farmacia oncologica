@@ -1,0 +1,118 @@
+import streamlit as st
+import fitz  # PyMuPDF
+
+# Título de la aplicación
+st.set_page_config(page_title="Asistente Cardio-Oncológico", layout="wide")
+st.title("🧠 Asistente Cardio-Oncológico")
+st.markdown("Este asistente analiza el informe clínico de un paciente oncológico y genera recomendaciones personalizadas según el riesgo cardiovascular y el tipo de tratamiento recibido.")
+
+# Cargar archivo PDF del paciente
+uploaded_file = st.file_uploader("📄 Sube el informe clínico del paciente (PDF)", type=["pdf"])
+
+# Función para extraer texto del PDF
+def extract_text_from_pdf(file):
+    doc = fitz.open(stream=file.read(), filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
+
+# Función para evaluar riesgo cardiovascular
+def evaluar_riesgo(texto):
+    riesgo = "Bajo"
+    factores = []
+    criterios = {
+        "HTA": "Hipertensión arterial",
+        "DM": "Diabetes mellitus",
+        "dislip": "Dislipemia",
+        "obes": "Obesidad",
+        "tabaq": "Tabaquismo",
+        "QT": "QT largo",
+        "FEVI": "FEVI reducida",
+        "RT torácica": "Radioterapia torácica",
+        "edad": "Edad avanzada",
+        "renal": "Enfermedad renal crónica",
+        "cardiopatía": "Cardiopatía previa"
+    }
+    for clave, nombre in criterios.items():
+        if clave.lower() in texto.lower():
+            factores.append(nombre)
+    if len(factores) >= 5:
+        riesgo = "Muy Alto"
+    elif len(factores) >= 3:
+        riesgo = "Alto"
+    elif len(factores) >= 1:
+        riesgo = "Moderado"
+    return riesgo, factores
+
+# Función para detectar tipo de fármaco
+def detectar_farmaco(texto):
+    farmacos = {
+        "antraciclina": ["doxorrubicina", "epirubicina", "idarubicina"],
+        "iVEGF": ["bevacizumab", "sunitinib", "pazopanib", "axitinib", "cabozantinib"],
+        "PARP": ["olaparib", "rucaparib", "niraparib", "talazoparib"],
+        "CDK4/6": ["ribociclib", "palbociclib", "abemaciclib"],
+        "ITK": ["imatinib", "lapatinib", "dasatinib", "nilotinib", "osimertinib"],
+        "hormonales": ["tamoxifeno", "abiraterona", "enzalutamida", "apalutamida"]
+    }
+    encontrados = []
+    for grupo, lista in farmacos.items():
+        for f in lista:
+            if f.lower() in texto.lower():
+                encontrados.append((grupo, f))
+    return encontrados
+
+# Función para generar recomendaciones
+def generar_recomendaciones(riesgo, farmacos):
+    recomendaciones = []
+    if riesgo in ["Alto", "Muy Alto"]:
+        recomendaciones.append("- Realizar ECG basal y seguimiento.")
+        recomendaciones.append("- Ecocardiograma al inicio y cada 6-12 meses.")
+        recomendaciones.append("- Monitorizar troponina T y NT-proBNP.")
+        recomendaciones.append("- Corregir electrolitos: K, Mg, Ca.")
+        recomendaciones.append("- Evaluar cardioprotección: IECAs, betabloqueantes, ARNI, iSGLT2.")
+    for grupo, f in farmacos:
+        if grupo == "antraciclina":
+            recomendaciones.append(f"- {f}: evitar verapamilo, amiodarona, digoxina. Riesgo de cardiotoxicidad.")
+        elif grupo == "iVEGF":
+            recomendaciones.append(f"- {f}: controlar PA, riesgo de QT prolongado y disfunción ventricular.")
+        elif grupo == "PARP":
+            recomendaciones.append(f"- {f}: revisar interacciones con CYP3A4 y P-gp.")
+        elif grupo == "CDK4/6":
+            recomendaciones.append(f"- {f}: evitar QT prolongado, realizar ECG frecuente.")
+        elif grupo == "ITK":
+            recomendaciones.append(f"- {f}: revisar metabolismo CYP y transporte P-gp.")
+        elif grupo == "hormonales":
+            recomendaciones.append(f"- {f}: evitar inhibidores CYP2D6 si usa tamoxifeno.")
+    return recomendaciones
+
+# Procesamiento del archivo
+if uploaded_file:
+    texto = extract_text_from_pdf(uploaded_file)
+    st.subheader("📋 Evaluación del Informe")
+    st.text_area("Texto extraído del informe", value=texto, height=300)
+    riesgo, factores = evaluar_riesgo(texto)
+    farmacos_detectados = detectar_farmaco(texto)
+    recomendaciones = generar_recomendaciones(riesgo, farmacos_detectados)
+
+    st.subheader("🧺 Estratificación de Riesgo Cardiovascular")
+    st.markdown(f"**Nivel de riesgo:** {riesgo}")
+    st.markdown(f"**Factores detectados:** {', '.join(factores) if factores else 'Ninguno'}")
+
+    st.subheader("💊 Fármacos Detectados")
+    if farmacos_detectados:
+        for grupo, f in farmacos_detectados:
+            st.markdown(f"- {f} ({grupo})")
+    else:
+        st.markdown("No se detectaron fármacos cardiotóxicos en el informe.")
+
+    st.subheader("📑 Recomendaciones Personalizadas")
+    for r in recomendaciones:
+        st.markdown(f"- {r}")
+
+    st.subheader("📚 Herramientas de Apoyo")
+    st.markdown("- Drugs.com")
+    st.markdown("- UpToDate")
+    st.markdown("- CredibleMeds")
+    st.markdown("- CIMA AEMPS")
+    st.success("✅ Informe generado con éxito. Puedes copiar las recomendaciones para tu informe clínico.")
